@@ -1,0 +1,1602 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fahrkostenrechner</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --secondary: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg-light: #f8fafc;
+            --bg-white: #ffffff;
+            --text-dark: #0f172a;
+            --text-light: #64748b;
+            --border: #e2e8f0;
+            --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: var(--text-dark);
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: var(--bg-white);
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .tabs {
+            display: flex;
+            background: var(--bg-light);
+            border-bottom: 2px solid var(--border);
+            padding: 0 30px;
+        }
+        
+        .tab {
+            padding: 18px 28px;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            color: var(--text-light);
+            font-size: 15px;
+            font-weight: 500;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .tab:hover {
+            color: var(--primary);
+            background: rgba(37, 99, 235, 0.05);
+        }
+        
+        .tab.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+            background: var(--bg-white);
+        }
+        
+        .tab-content {
+            display: none;
+            padding: 30px;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        #map {
+            height: 600px;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+        }
+        
+        .map-container {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .map-wrapper {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .cost-sidebar {
+            background: var(--bg-light);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: var(--shadow);
+        }
+        
+        .cost-sidebar h3 {
+            margin-bottom: 15px;
+            color: var(--primary);
+            font-size: 18px;
+        }
+        
+        .vehicle-selector {
+            margin-bottom: 20px;
+        }
+        
+        .cost-breakdown {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 15px;
+        }
+        
+        .cost-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .cost-item:last-child {
+            border-bottom: none;
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--primary);
+            padding-top: 15px;
+            margin-top: 5px;
+            border-top: 2px solid var(--primary);
+        }
+        
+        .cost-label {
+            color: var(--text-light);
+            font-size: 14px;
+        }
+        
+        .cost-value {
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+        
+        @media (max-width: 1024px) {
+            .map-container {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .route-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-dark);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .form-group input,
+        .form-group select {
+            padding: 12px 14px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+        
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+        
+        .btn-secondary {
+            background: var(--secondary);
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #475569;
+        }
+        
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+            margin-left: 10px;
+        }
+        
+        .waypoints-list {
+            background: var(--bg-light);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .waypoint-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            box-shadow: var(--shadow);
+        }
+        
+        .waypoint-number {
+            width: 30px;
+            height: 30px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        
+        .waypoint-address {
+            flex: 1;
+            font-size: 14px;
+        }
+        
+        .route-info {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border-left: 4px solid var(--primary);
+        }
+        
+        .route-info h3 {
+            margin-bottom: 15px;
+            color: var(--primary);
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .info-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+        }
+        
+        .info-item-label {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+        }
+        
+        .info-item-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+        
+        .vehicle-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+        
+        .vehicle-table thead {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+        }
+        
+        .vehicle-table th {
+            padding: 16px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .vehicle-table td {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .vehicle-table tbody tr:hover {
+            background: var(--bg-light);
+        }
+        
+        .cost-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .cost-badge.variable {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .cost-badge.fixed {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .cost-badge.total {
+            background: #dcfce7;
+            color: #166534;
+        }
+        
+        .input-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+        }
+        
+        .card h3 {
+            margin-bottom: 15px;
+            color: var(--primary);
+            font-size: 18px;
+        }
+        
+        .info-note {
+            font-size: 12px;
+            color: var(--text-light);
+            font-style: italic;
+            margin-top: 4px;
+        }
+        
+        .reference-price {
+            display: inline-block;
+            margin-left: 10px;
+            padding: 4px 8px;
+            background: #fef3c7;
+            color: #92400e;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .saved-vehicles {
+            margin-top: 20px;
+        }
+        
+        .vehicle-card {
+            background: var(--bg-light);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid var(--primary);
+        }
+        
+        .vehicle-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .vehicle-type {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+        
+        .vehicle-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚗 Fahrkostenrechner Professional</h1>
+            <p>Präzise Kostenberechnung für PKW, Transporter und LKW</p>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" data-tab="map">📍 Routenplaner</button>
+            <button class="tab" data-tab="overview">📊 Fahrzeugübersicht</button>
+            <button class="tab" data-tab="input">⚙️ Fahrzeugdaten</button>
+        </div>
+        
+        <!-- Tab 1: Routenplaner -->
+        <div id="tab-map" class="tab-content active">
+            <div class="route-controls">
+                <div class="form-group">
+                    <label>Startpunkt</label>
+                    <input type="text" id="start" placeholder="z.B. München Hauptbahnhof">
+                </div>
+                <div class="form-group">
+                    <label>Zielpunkt</label>
+                    <input type="text" id="end" placeholder="z.B. Berlin Alexanderplatz">
+                </div>
+                <div class="form-group">
+                    <label>Routentyp</label>
+                    <select id="routeType">
+                        <option value="fastest">Schnellste Route</option>
+                        <option value="shortest">Kürzeste Route</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <button class="btn btn-primary" onclick="calculateRoute()">Route berechnen</button>
+                </div>
+            </div>
+            
+            <div class="map-container">
+                <div class="map-wrapper">
+                    <div id="map"></div>
+                </div>
+                
+                <div class="cost-sidebar">
+                    <h3>Kostenberechnung</h3>
+                    
+                    <div class="form-group vehicle-selector">
+                        <label>Fahrzeug auswählen</label>
+                        <select id="selectedVehicleForRoute" onchange="updateRouteCosts()">
+                            <option value="">-- Fahrzeug wählen --</option>
+                        </select>
+                    </div>
+                    
+                    <div id="routeCostDisplay" style="display: none;">
+                        <div class="cost-breakdown">
+                            <h4 style="margin-bottom: 15px; font-size: 16px;">Kostenaufschlüsselung</h4>
+                            
+                            <div class="cost-item">
+                                <span class="cost-label">Kraftstoff</span>
+                                <span class="cost-value" id="costFuel">0,00 €</span>
+                            </div>
+                            <div class="cost-item" id="costAdblueRow" style="display: none;">
+                                <span class="cost-label">AdBlue</span>
+                                <span class="cost-value" id="costAdblue">0,00 €</span>
+                            </div>
+                            <div class="cost-item" id="costTollRow" style="display: none;">
+                                <span class="cost-label">Maut</span>
+                                <span class="cost-value" id="costToll">0,00 €</span>
+                            </div>
+                            <div class="cost-item">
+                                <span class="cost-label">Reifen</span>
+                                <span class="cost-value" id="costTire">0,00 €</span>
+                            </div>
+                            <div class="cost-item">
+                                <span class="cost-label">Öl</span>
+                                <span class="cost-value" id="costOil">0,00 €</span>
+                            </div>
+                            <div class="cost-item" id="costDriverRow">
+                                <span class="cost-label">Lohnkosten Fahrer</span>
+                                <span class="cost-value" id="costDriver">0,00 €</span>
+                            </div>
+                            <div class="cost-item">
+                                <span class="cost-label">Entwertung</span>
+                                <span class="cost-value" id="costDepreciation">0,00 €</span>
+                            </div>
+                            <div class="cost-item">
+                                <span class="cost-label">Sonstige Fixkosten</span>
+                                <span class="cost-value" id="costFixed">0,00 €</span>
+                            </div>
+                            <div class="cost-item">
+                                <span class="cost-label">GESAMTKOSTEN</span>
+                                <span class="cost-value" id="costTotal">0,00 €</span>
+                            </div>
+                        </div>
+                        
+                        <div style="background: white; padding: 15px; border-radius: 6px; margin-top: 15px; font-size: 13px; color: var(--text-light);">
+                            <strong style="color: var(--text-dark);">Kostendetails:</strong><br>
+                            <span id="costDetails"></span>
+                        </div>
+                    </div>
+                    
+                    <div id="noVehicleMessage" style="padding: 20px; text-align: center; color: var(--text-light); font-size: 14px;">
+                        Wählen Sie ein Fahrzeug aus, um die Kosten für die Route zu berechnen.
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="addWaypoint()">+ Zwischenstopp hinzufügen</button>
+                <button class="btn btn-secondary" onclick="clearRoute()">Route löschen</button>
+            </div>
+            
+            <div id="waypointsList" class="waypoints-list" style="display: none;">
+                <h3>Zwischenstopps</h3>
+                <div id="waypoints"></div>
+            </div>
+            
+            <div id="routeInfo" class="route-info" style="display: none;">
+                <h3>Routeninformationen</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-item-label">Gesamtstrecke</div>
+                        <div class="info-item-value" id="totalDistance">0 km</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-item-label">Fahrtzeit</div>
+                        <div class="info-item-value" id="totalDuration">0 h</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab 2: Fahrzeugübersicht -->
+        <div id="tab-overview" class="tab-content">
+            <h2 style="margin-bottom: 20px;">Kostenübersicht aller Fahrzeuge</h2>
+            
+            <div class="form-group" style="max-width: 300px; margin-bottom: 20px;">
+                <label>Strecke für Berechnung (km)</label>
+                <input type="number" id="overviewDistance" value="100" min="1" 
+                       onchange="updateOverview()" placeholder="z.B. 100">
+            </div>
+            
+            <table class="vehicle-table">
+                <thead>
+                    <tr>
+                        <th>Fahrzeugtyp</th>
+                        <th>Variable Kosten/km</th>
+                        <th>Fixkosten/Monat</th>
+                        <th>Gesamtkosten für Strecke</th>
+                        <th>Aktionen</th>
+                    </tr>
+                </thead>
+                <tbody id="vehicleOverviewTable">
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-light);">
+                            Keine Fahrzeuge gespeichert. Bitte fügen Sie Fahrzeuge im Tab "Fahrzeugdaten" hinzu.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <!-- Tab 3: Fahrzeugdaten -->
+        <div id="tab-input" class="tab-content">
+            <h2 style="margin-bottom: 20px;">Fahrzeugdaten eingeben</h2>
+            
+            <div class="form-group" style="max-width: 400px; margin-bottom: 30px;">
+                <label>Fahrzeugtyp auswählen</label>
+                <select id="vehicleType" onchange="updateFormFields()">
+                    <option value="">-- Bitte wählen --</option>
+                    <option value="pkw">PKW</option>
+                    <option value="crafter">Crafter / Transporter</option>
+                    <option value="lkw3">LKW 3-Achser</option>
+                    <option value="lkwtrailer">LKW mit Anhänger / Sattelzug</option>
+                </select>
+            </div>
+            
+            <div id="vehicleForm" style="display: none;">
+                <div class="card" style="margin-bottom: 20px;">
+                    <h3>Allgemeine Daten</h3>
+                    <div class="input-grid">
+                        <div class="form-group">
+                            <label>Fahrzeugbezeichnung</label>
+                            <input type="text" id="vehicleName" placeholder="z.B. VW Passat 2.0 TDI">
+                        </div>
+                        <div class="form-group">
+                            <label>Kennzeichen (optional)</label>
+                            <input type="text" id="licensePlate" placeholder="z.B. M-AB 1234">
+                        </div>
+                        <div class="form-group">
+                            <label>Jährliche Fahrleistung (km)</label>
+                            <input type="number" id="annualMileage" placeholder="z.B. 30000">
+                            <div class="info-note">Wichtig für die Kostenberechnung pro km</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-bottom: 20px;">
+                    <h3>Lohnkosten Fahrer</h3>
+                    <div class="input-grid">
+                        <div class="form-group">
+                            <label>Brutto-Stundenlohn Fahrer (€/h)</label>
+                            <input type="number" id="driverWage" step="0.01" placeholder="z.B. 18.50">
+                            <div class="info-note">Bruttolohn inkl. Nebenkosten</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-bottom: 20px;">
+                    <h3>Variable Kosten</h3>
+                    <div class="input-grid">
+                        <div class="form-group">
+                            <label>Kraftstoffverbrauch (l/100km)</label>
+                            <input type="number" id="fuelConsumption" step="0.1" placeholder="z.B. 6.5">
+                        </div>
+                        <div class="form-group">
+                            <label>Kraftstoffpreis (€/Liter)</label>
+                            <input type="number" id="fuelPrice" step="0.01" placeholder="z.B. 1.75">
+                            <span class="reference-price">Aktuell: Diesel ~1,72€ | Super E10 ~1,75€</span>
+                            <div class="info-note">Stand: Februar 2026</div>
+                        </div>
+                        <div class="form-group" id="adblueGroup" style="display: none;">
+                            <label>AdBlue Jahresverbrauch (Liter)</label>
+                            <input type="number" id="adblueYearlyConsumption" step="1" placeholder="z.B. 600">
+                            <div class="info-note">Gesamtverbrauch AdBlue pro Jahr</div>
+                        </div>
+                        <div class="form-group" id="adblueGroup2" style="display: none;">
+                            <label>AdBlue-Preis (€/Liter)</label>
+                            <input type="number" id="adbluePrice" step="0.01" placeholder="z.B. 1.20">
+                            <span class="reference-price">Aktuell: ~1,10-1,40€/Liter</span>
+                            <div class="info-note">Stand: Februar 2026</div>
+                        </div>
+                        <div class="form-group" id="axleGroup" style="display: none;">
+                            <label>Anzahl Achsen</label>
+                            <select id="axleCount" onchange="updateTollRate()">
+                                <option value="">-- Bitte wählen --</option>
+                                <option value="2">2 Achsen</option>
+                                <option value="3">3 Achsen</option>
+                                <option value="4">4 Achsen</option>
+                                <option value="5">5+ Achsen</option>
+                            </select>
+                            <div class="info-note">Wichtig für Mautberechnung</div>
+                        </div>
+                        <div class="form-group" id="emissionGroup" style="display: none;">
+                            <label>Schadstoffklasse</label>
+                            <select id="emissionClass" onchange="updateTollRate()">
+                                <option value="">-- Bitte wählen --</option>
+                                <option value="euro6">Euro 6</option>
+                                <option value="euro5">Euro 5</option>
+                                <option value="euro4">Euro 4</option>
+                                <option value="euro3">Euro 3 oder schlechter</option>
+                            </select>
+                            <div class="info-note">Für Mautberechnung</div>
+                        </div>
+                        <div class="form-group" id="tollGroup" style="display: none;">
+                            <label>Mautsatz (€/km)</label>
+                            <input type="number" id="tollRate" step="0.001" placeholder="Wird automatisch berechnet" readonly>
+                            <span class="reference-price" id="tollReference">Abhängig von Achsen & Schadstoffklasse</span>
+                            <div class="info-note">Automatisch basierend auf Achsen & Emissionsklasse. Maut gilt für ~90% der Strecke (Autobahnen/Bundesstraßen)</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Preis pro Reifen (€)</label>
+                            <input type="number" id="tirePrice" step="1" placeholder="z.B. 200">
+                        </div>
+                        <div class="form-group">
+                            <label>Anzahl Reifen</label>
+                            <input type="number" id="tireCount" step="1" placeholder="z.B. 4">
+                            <div class="info-note">PKW: 4, Crafter: 6, LKW: 6-10+</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Reifenlaufleistung (km)</label>
+                            <input type="number" id="tireMileage" step="1000" placeholder="z.B. 50000">
+                            <div class="info-note">Wie lange hält ein Reifensatz</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Ölverbrauch Jahreskosten (€)</label>
+                            <input type="number" id="oilYearlyCost" step="1" placeholder="z.B. 150">
+                            <div class="info-note">Gesamtkosten für Öl pro Jahr</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-bottom: 20px;">
+                    <h3>Fixkosten</h3>
+                    <div class="input-grid">
+                        <div class="form-group">
+                            <label>Neupreis Fahrzeug (€)</label>
+                            <input type="number" id="purchasePrice" step="1" placeholder="z.B. 45000">
+                            <div class="info-note">Anschaffungspreis des Fahrzeugs</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Abschreibungszeit (Jahre)</label>
+                            <input type="number" id="depreciationYears" step="1" placeholder="z.B. 5">
+                            <div class="info-note">Nutzungsdauer für Abschreibung</div>
+                        </div>
+                        <div class="form-group">
+                            <label>Versicherung (€/Jahr)</label>
+                            <input type="number" id="insurance" step="1" placeholder="z.B. 1200">
+                        </div>
+                        <div class="form-group">
+                            <label>KFZ-Steuer (€/Jahr)</label>
+                            <input type="number" id="tax" step="1" placeholder="z.B. 350">
+                        </div>
+                        <div class="form-group">
+                            <label>Wartung/Inspektion (€/Jahr)</label>
+                            <input type="number" id="maintenance" step="1" placeholder="z.B. 800">
+                        </div>
+                        <div class="form-group">
+                            <label>Leasingrate (€/Monat)</label>
+                            <input type="number" id="leasing" step="1" placeholder="z.B. 450">
+                            <div class="info-note">Optional, falls geleast</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 15px;">
+                    <button class="btn btn-success" onclick="saveVehicle()">💾 Fahrzeug speichern</button>
+                    <button class="btn btn-secondary" onclick="resetForm()">🔄 Formular zurücksetzen</button>
+                </div>
+            </div>
+            
+            <div class="saved-vehicles" id="savedVehicles">
+                <h3 style="margin: 30px 0 15px 0;">Gespeicherte Fahrzeuge</h3>
+                <div id="vehiclesList"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Globale Variablen
+        let map;
+        let routeLayer;
+        let markers = [];
+        let waypoints = [];
+        let vehicles = JSON.parse(localStorage.getItem('vehicles')) || [];
+        let currentRouteDistance = 0;
+        let currentRouteDuration = 0;
+        
+        // Karte initialisieren
+        function initMap() {
+            map = L.map('map').setView([51.1657, 10.4515], 6);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+        }
+        
+        // Tab-Funktionalität
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                const tabName = this.dataset.tab;
+                
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                this.classList.add('active');
+                document.getElementById('tab-' + tabName).classList.add('active');
+                
+                if (tabName === 'map' && map) {
+                    setTimeout(() => {
+                        map.invalidateSize();
+                        updateVehicleSelector();
+                    }, 100);
+                }
+                
+                if (tabName === 'overview') {
+                    updateOverview();
+                }
+                
+                if (tabName === 'input') {
+                    displaySavedVehicles();
+                }
+            });
+        });
+        
+        // Fahrzeug-Selector aktualisieren
+        function updateVehicleSelector() {
+            const selector = document.getElementById('selectedVehicleForRoute');
+            selector.innerHTML = '<option value="">-- Fahrzeug wählen --</option>';
+            
+            const typeNames = {
+                pkw: 'PKW',
+                crafter: 'Crafter / Transporter',
+                lkw3: 'LKW 3-Achser',
+                lkwtrailer: 'LKW mit Anhänger / Sattelzug'
+            };
+            
+            vehicles.forEach(vehicle => {
+                const option = document.createElement('option');
+                option.value = vehicle.id;
+                option.textContent = `${typeNames[vehicle.type]} - ${vehicle.name}`;
+                selector.appendChild(option);
+            });
+        }
+        
+        // Route berechnen mit OSRM API (Open Source Routing Machine)
+        async function calculateRoute() {
+            const start = document.getElementById('start').value;
+            const end = document.getElementById('end').value;
+            const routeType = document.getElementById('routeType').value;
+            
+            if (!start || !end) {
+                alert('Bitte Start- und Zielpunkt eingeben!');
+                return;
+            }
+            
+            try {
+                // Geocoding für Start und Ziel
+                const startCoords = await geocode(start);
+                const endCoords = await geocode(end);
+                
+                if (!startCoords || !endCoords) {
+                    alert('Orte konnten nicht gefunden werden. Bitte versuchen Sie es erneut.');
+                    return;
+                }
+                
+                // Koordinaten für Routing sammeln
+                const coordinates = [[startCoords.lon, startCoords.lat]];
+                
+                // Waypoints hinzufügen
+                for (let wp of waypoints) {
+                    coordinates.push([wp.lon, wp.lat]);
+                }
+                
+                coordinates.push([endCoords.lon, endCoords.lat]);
+                
+                // OSRM API für Routing (kostenlos, kein API-Key nötig)
+                const coordString = coordinates.map(c => c.join(',')).join(';');
+                const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${coordString}?overview=full&geometries=geojson`;
+                
+                const response = await fetch(osrmUrl);
+                
+                if (!response.ok) {
+                    throw new Error('Routing-Anfrage fehlgeschlagen');
+                }
+                
+                const data = await response.json();
+                
+                if (!data.routes || data.routes.length === 0) {
+                    throw new Error('Keine Route gefunden');
+                }
+                
+                const route = data.routes[0];
+                const geometry = route.geometry;
+                
+                // Distanz und Dauer speichern
+                currentRouteDistance = (route.distance / 1000).toFixed(1); // in km
+                currentRouteDuration = (route.duration / 3600).toFixed(1); // in Stunden
+                
+                // Marker setzen
+                clearMarkers();
+                const startMarker = L.marker([startCoords.lat, startCoords.lon])
+                    .bindPopup('Start: ' + start)
+                    .addTo(map);
+                const endMarker = L.marker([endCoords.lat, endCoords.lon])
+                    .bindPopup('Ziel: ' + end)
+                    .addTo(map);
+                markers.push(startMarker, endMarker);
+                
+                // Waypoint-Marker
+                waypoints.forEach((wp, index) => {
+                    const wpMarker = L.marker([wp.lat, wp.lon])
+                        .bindPopup('Stopp ' + (index + 1) + ': ' + wp.address)
+                        .addTo(map);
+                    markers.push(wpMarker);
+                });
+                
+                // Route zeichnen (GeoJSON Format)
+                if (routeLayer) {
+                    map.removeLayer(routeLayer);
+                }
+                
+                // GeoJSON Koordinaten in Leaflet Format umwandeln
+                const routeCoords = geometry.coordinates.map(coord => [coord[1], coord[0]]);
+                routeLayer = L.polyline(routeCoords, {
+                    color: '#2563eb',
+                    weight: 5,
+                    opacity: 0.7
+                }).addTo(map);
+                
+                map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+                
+                // Route-Info anzeigen
+                document.getElementById('totalDistance').textContent = currentRouteDistance + ' km';
+                document.getElementById('totalDuration').textContent = currentRouteDuration + ' h';
+                document.getElementById('routeInfo').style.display = 'block';
+                
+                // Kosten aktualisieren falls Fahrzeug ausgewählt
+                updateRouteCosts();
+                
+            } catch (error) {
+                console.error('Fehler:', error);
+                alert('Fehler bei der Routenberechnung. Bitte versuchen Sie es erneut oder verwenden Sie genauere Adressen.');
+            }
+        }
+        
+        // Geocoding (Nominatim API) - Europa-weit
+        async function geocode(address) {
+            // Kein länderspezifisches Limit - europaweit suchen
+            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`);
+            const data = await response.json();
+            if (data && data.length > 0) {
+                return {lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon)};
+            }
+            return null;
+        }
+        
+        // Marker löschen
+        function clearMarkers() {
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+        }
+        
+        // Route löschen
+        function clearRoute() {
+            clearMarkers();
+            if (routeLayer) {
+                map.removeLayer(routeLayer);
+            }
+            waypoints = [];
+            currentRouteDistance = 0;
+            currentRouteDuration = 0;
+            document.getElementById('routeInfo').style.display = 'none';
+            document.getElementById('waypointsList').style.display = 'none';
+            document.getElementById('start').value = '';
+            document.getElementById('end').value = '';
+            document.getElementById('routeCostDisplay').style.display = 'none';
+            document.getElementById('noVehicleMessage').style.display = 'block';
+        }
+        
+        // Zwischenstopp hinzufügen
+        async function addWaypoint() {
+            const address = prompt('Adresse des Zwischenstopps:');
+            if (address) {
+                const coords = await geocode(address);
+                if (coords) {
+                    waypoints.push({address, lat: coords.lat, lon: coords.lon});
+                    displayWaypoints();
+                    // Route neu berechnen wenn bereits vorhanden
+                    if (document.getElementById('start').value && document.getElementById('end').value) {
+                        calculateRoute();
+                    }
+                } else {
+                    alert('Adresse konnte nicht gefunden werden.');
+                }
+            }
+        }
+        
+        // Zwischenstopps anzeigen
+        function displayWaypoints() {
+            const list = document.getElementById('waypoints');
+            list.innerHTML = '';
+            
+            if (waypoints.length > 0) {
+                document.getElementById('waypointsList').style.display = 'block';
+                waypoints.forEach((wp, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'waypoint-item';
+                    item.innerHTML = `
+                        <div class="waypoint-number">${index + 1}</div>
+                        <div class="waypoint-address">${wp.address}</div>
+                        <button class="btn btn-danger btn-small" onclick="removeWaypoint(${index})">Entfernen</button>
+                    `;
+                    list.appendChild(item);
+                });
+            } else {
+                document.getElementById('waypointsList').style.display = 'none';
+            }
+        }
+        
+        // Zwischenstopp entfernen
+        function removeWaypoint(index) {
+            waypoints.splice(index, 1);
+            displayWaypoints();
+            if (document.getElementById('start').value && document.getElementById('end').value) {
+                calculateRoute();
+            }
+        }
+        
+        // Routenkosten aktualisieren
+        function updateRouteCosts() {
+            const vehicleId = parseInt(document.getElementById('selectedVehicleForRoute').value);
+            
+            if (!vehicleId || currentRouteDistance === 0) {
+                document.getElementById('routeCostDisplay').style.display = 'none';
+                document.getElementById('noVehicleMessage').style.display = 'block';
+                return;
+            }
+            
+            const vehicle = vehicles.find(v => v.id === vehicleId);
+            if (!vehicle) return;
+            
+            const distance = parseFloat(currentRouteDistance);
+            
+            // Kosten berechnen
+            const costs = calculateDetailedCosts(vehicle, distance);
+            
+            // UI aktualisieren
+            document.getElementById('costFuel').textContent = costs.fuel.toFixed(2) + ' €';
+            document.getElementById('costAdblue').textContent = costs.adblue.toFixed(2) + ' €';
+            document.getElementById('costToll').textContent = costs.toll.toFixed(2) + ' €';
+            document.getElementById('costTire').textContent = costs.tire.toFixed(2) + ' €';
+            document.getElementById('costOil').textContent = costs.oil.toFixed(2) + ' €';
+            document.getElementById('costDriver').textContent = costs.driver.toFixed(2) + ' €';
+            document.getElementById('costDepreciation').textContent = costs.depreciation.toFixed(2) + ' €';
+            document.getElementById('costFixed').textContent = costs.otherFixed.toFixed(2) + ' €';
+            document.getElementById('costTotal').textContent = costs.total.toFixed(2) + ' €';
+            
+            // AdBlue und Maut-Zeilen ein/ausblenden
+            document.getElementById('costAdblueRow').style.display = costs.adblue > 0 ? 'flex' : 'none';
+            document.getElementById('costTollRow').style.display = costs.toll > 0 ? 'flex' : 'none';
+            
+            // Details
+            const drivingTimeFormatted = costs.drivingTime < 1 
+                ? Math.round(costs.drivingTime * 60) + ' Min' 
+                : costs.drivingTime.toFixed(1) + ' h';
+            
+            document.getElementById('costDetails').innerHTML = `
+                Strecke: ${distance} km<br>
+                Fahrzeit (inkl. Pausen): ${drivingTimeFormatted}<br>
+                Variable Kosten: ${costs.variableTotal.toFixed(2)} €<br>
+                Fixkosten (anteilig): ${costs.fixedTotal.toFixed(2)} €<br>
+                Kosten pro km: ${(costs.total / distance).toFixed(3)} €
+            `;
+            
+            document.getElementById('routeCostDisplay').style.display = 'block';
+            document.getElementById('noVehicleMessage').style.display = 'none';
+        }
+        
+        // Detaillierte Kostenberechnung
+        // Fahrzeit berechnen mit Geschwindigkeiten und Lenk-/Ruhezeiten
+        function calculateDrivingTime(vehicle, distance) {
+            // Geschwindigkeiten basierend auf Fahrzeugtyp
+            let avgSpeed;
+            if (vehicle.type === 'pkw' || vehicle.type === 'crafter') {
+                avgSpeed = 90; // Durchschnitt: 80 km/h Landstraße, 100 km/h Autobahn, 50 km/h Innerorts
+            } else { // LKW
+                avgSpeed = 70; // Durchschnitt: 60 km/h Landstraße, 75 km/h Autobahn, 50 km/h Innerorts
+            }
+            
+            let drivingTimeHours = distance / avgSpeed;
+            
+            // Lenk- und Ruhezeiten für LKW hinzufügen
+            if (vehicle.type === 'lkw3' || vehicle.type === 'lkwtrailer') {
+                // Nach 4,5h Lenkzeit: 45 Min Pause
+                // Nach 9h Lenkzeit: Tagesruhe (11h)
+                const drivingPeriods = Math.floor(drivingTimeHours / 4.5);
+                const breaks = drivingPeriods * 0.75; // 45 Min = 0.75h
+                
+                const daysOnRoad = Math.floor(drivingTimeHours / 9);
+                const restPeriods = daysOnRoad * 11; // 11h Ruhezeit
+                
+                drivingTimeHours += breaks + restPeriods;
+            }
+            
+            return drivingTimeHours;
+        }
+        
+        function calculateDetailedCosts(vehicle, distance) {
+            const annualMileage = vehicle.annualMileage || 1; // Fallback to 1 to avoid division by zero
+            
+            // Variable Kosten
+            const fuelCost = (vehicle.fuelConsumption / 100) * vehicle.fuelPrice * distance;
+            
+            // AdBlue: Jahresverbrauch × Preis ÷ Jahreskilometer × Strecke
+            const adblueYearlyCost = (vehicle.adblueYearlyConsumption || 0) * (vehicle.adbluePrice || 0);
+            const adblueCost = annualMileage > 0 ? (adblueYearlyCost / annualMileage) * distance : 0;
+            
+            // Maut: ~90% der Strecke ist mautpflichtig (Autobahnen/Bundesstraßen)
+            // Nur kleine Innerorts-Anteile sind mautfrei
+            const tollableDistance = distance * 0.9;
+            const tollCost = (vehicle.tollRate || 0) * tollableDistance;
+            
+            // Reifen: (Anzahl × Preis) ÷ Laufleistung × Strecke
+            const tireSetCost = (vehicle.tirePrice || 0) * (vehicle.tireCount || 0);
+            const tireCost = (vehicle.tireMileage || 1) > 0 ? (tireSetCost / vehicle.tireMileage) * distance : 0;
+            
+            const oilCost = annualMileage > 0 ? ((vehicle.oilYearlyCost || 0) / annualMileage) * distance : 0;
+            
+            // Fahrzeit berechnen
+            const drivingTimeHours = calculateDrivingTime(vehicle, distance);
+            const driverCost = drivingTimeHours * (vehicle.driverWage || 0);
+            
+            const variableTotal = fuelCost + adblueCost + tollCost + tireCost + oilCost + driverCost;
+            
+            // Fixkosten (Entwertung)
+            const yearlyDepreciation = (vehicle.depreciationYears || 0) > 0 ? (vehicle.purchasePrice || 0) / vehicle.depreciationYears : 0;
+            const depreciationPerKm = annualMileage > 0 ? yearlyDepreciation / annualMileage : 0;
+            const depreciationCost = depreciationPerKm * distance;
+            
+            // Sonstige Fixkosten
+            const yearlyFixed = (vehicle.insurance || 0) + (vehicle.tax || 0) + (vehicle.maintenance || 0) + ((vehicle.leasing || 0) * 12);
+            const fixedPerKm = annualMileage > 0 ? yearlyFixed / annualMileage : 0;
+            const otherFixedCost = fixedPerKm * distance;
+            
+            const fixedTotal = depreciationCost + otherFixedCost;
+            const total = variableTotal + fixedTotal;
+            
+            return {
+                fuel: fuelCost,
+                adblue: adblueCost,
+                toll: tollCost,
+                tollableDistance: tollableDistance,
+                tire: tireCost,
+                oil: oilCost,
+                driver: driverCost,
+                drivingTime: drivingTimeHours,
+                variableTotal: variableTotal,
+                depreciation: depreciationCost,
+                otherFixed: otherFixedCost,
+                fixedTotal: fixedTotal,
+                total: total
+            };
+        }
+        
+        // Mautsatz basierend auf Achsen und Schadstoffklasse berechnen
+        function updateTollRate() {
+            const axleCount = document.getElementById('axleCount').value;
+            const emissionClass = document.getElementById('emissionClass').value;
+            const tollRateInput = document.getElementById('tollRate');
+            const tollReference = document.getElementById('tollReference');
+            
+            if (!axleCount || !emissionClass) {
+                tollRateInput.value = '';
+                tollReference.textContent = 'Bitte Achsen & Schadstoffklasse wählen';
+                return;
+            }
+            
+            // Mautsätze 2026 (Stand Februar 2026) in €/km
+            // Basierend auf: Infrastruktur + Luftverschmutzung + Lärmbelastung + CO₂-Kosten
+            const tollRates = {
+                '2': {
+                    'euro6': 0.187,   // 2 Achsen, Euro 6
+                    'euro5': 0.205,   // 2 Achsen, Euro 5
+                    'euro4': 0.223,   // 2 Achsen, Euro 4
+                    'euro3': 0.249    // 2 Achsen, Euro 3 oder schlechter
+                },
+                '3': {
+                    'euro6': 0.242,   // 3 Achsen, Euro 6
+                    'euro5': 0.267,   // 3 Achsen, Euro 5
+                    'euro4': 0.291,   // 3 Achsen, Euro 4
+                    'euro3': 0.325    // 3 Achsen, Euro 3 oder schlechter
+                },
+                '4': {
+                    'euro6': 0.284,   // 4 Achsen, Euro 6
+                    'euro5': 0.314,   // 4 Achsen, Euro 5
+                    'euro4': 0.343,   // 4 Achsen, Euro 4
+                    'euro3': 0.384    // 4 Achsen, Euro 3 oder schlechter
+                },
+                '5': {
+                    'euro6': 0.348,   // 5+ Achsen, Euro 6
+                    'euro5': 0.385,   // 5+ Achsen, Euro 5
+                    'euro4': 0.421,   // 5+ Achsen, Euro 4
+                    'euro3': 0.473    // 5+ Achsen, Euro 3 oder schlechter
+                }
+            };
+            
+            const rate = tollRates[axleCount]?.[emissionClass] || 0;
+            tollRateInput.value = rate.toFixed(3);
+            
+            const axleText = axleCount === '5' ? '5+ Achsen' : axleCount + ' Achsen';
+            const emissionText = emissionClass === 'euro6' ? 'Euro 6' : 
+                                 emissionClass === 'euro5' ? 'Euro 5' : 
+                                 emissionClass === 'euro4' ? 'Euro 4' : 'Euro 3 oder schlechter';
+            
+            tollReference.textContent = `Aktuell 2026: ${rate.toFixed(3)} €/km (${axleText}, ${emissionText})`;
+        }
+        
+        function updateFormFields() {
+            const vehicleType = document.getElementById('vehicleType').value;
+            const form = document.getElementById('vehicleForm');
+            const adblueGroup = document.getElementById('adblueGroup');
+            const adblueGroup2 = document.getElementById('adblueGroup2');
+            const axleGroup = document.getElementById('axleGroup');
+            const emissionGroup = document.getElementById('emissionGroup');
+            const tollGroup = document.getElementById('tollGroup');
+            
+            if (vehicleType) {
+                form.style.display = 'block';
+                
+                // Alle Fahrzeuge sind Diesel und brauchen AdBlue
+                adblueGroup.style.display = 'block';
+                adblueGroup2.style.display = 'block';
+                
+                if (vehicleType === 'pkw' || vehicleType === 'crafter') {
+                    // PKW & Crafter: AdBlue ja, aber MAUTFREI (unter 3,5t)
+                    axleGroup.style.display = 'none';
+                    emissionGroup.style.display = 'none';
+                    tollGroup.style.display = 'none';
+                } else {
+                    // LKW: AdBlue, Achsen, Emission und Maut
+                    axleGroup.style.display = 'block';
+                    emissionGroup.style.display = 'block';
+                    tollGroup.style.display = 'block';
+                }
+            } else {
+                form.style.display = 'none';
+            }
+        }
+        
+        // Fahrzeug speichern
+        function saveVehicle() {
+            const vehicleType = document.getElementById('vehicleType').value;
+            const vehicleName = document.getElementById('vehicleName').value;
+            const annualMileage = parseFloat(document.getElementById('annualMileage').value);
+            
+            if (!vehicleType || !vehicleName || !annualMileage) {
+                alert('Bitte Fahrzeugtyp, Bezeichnung und jährliche Fahrleistung angeben!');
+                return;
+            }
+            
+            // Nur für LKW (nicht Crafter!): Achsen und Schadstoffklasse prüfen
+            if (vehicleType === 'lkw3' || vehicleType === 'lkwtrailer') {
+                const axleCount = document.getElementById('axleCount').value;
+                const emissionClass = document.getElementById('emissionClass').value;
+                
+                if (!axleCount || !emissionClass) {
+                    alert('Bitte Achsenanzahl und Schadstoffklasse für LKW angeben!');
+                    return;
+                }
+            }
+            
+            const vehicle = {
+                id: Date.now(),
+                type: vehicleType,
+                name: vehicleName,
+                licensePlate: document.getElementById('licensePlate').value,
+                annualMileage: annualMileage,
+                driverWage: parseFloat(document.getElementById('driverWage').value) || 0,
+                fuelConsumption: parseFloat(document.getElementById('fuelConsumption').value) || 0,
+                fuelPrice: parseFloat(document.getElementById('fuelPrice').value) || 0,
+                adblueYearlyConsumption: parseFloat(document.getElementById('adblueYearlyConsumption').value) || 0,
+                adbluePrice: parseFloat(document.getElementById('adbluePrice').value) || 0,
+                axleCount: document.getElementById('axleCount').value || '',
+                emissionClass: document.getElementById('emissionClass').value || '',
+                tollRate: parseFloat(document.getElementById('tollRate').value) || 0,
+                tirePrice: parseFloat(document.getElementById('tirePrice').value) || 0,
+                tireCount: parseFloat(document.getElementById('tireCount').value) || 0,
+                tireMileage: parseFloat(document.getElementById('tireMileage').value) || 0,
+                oilYearlyCost: parseFloat(document.getElementById('oilYearlyCost').value) || 0,
+                purchasePrice: parseFloat(document.getElementById('purchasePrice').value) || 0,
+                depreciationYears: parseFloat(document.getElementById('depreciationYears').value) || 0,
+                insurance: parseFloat(document.getElementById('insurance').value) || 0,
+                tax: parseFloat(document.getElementById('tax').value) || 0,
+                maintenance: parseFloat(document.getElementById('maintenance').value) || 0,
+                leasing: parseFloat(document.getElementById('leasing').value) || 0
+            };
+            
+            vehicles.push(vehicle);
+            localStorage.setItem('vehicles', JSON.stringify(vehicles));
+            
+            alert('Fahrzeug erfolgreich gespeichert!');
+            resetForm();
+            displaySavedVehicles();
+            updateVehicleSelector();
+        }
+        
+        // Formular zurücksetzen
+        function resetForm() {
+            document.getElementById('vehicleType').value = '';
+            document.getElementById('vehicleForm').style.display = 'none';
+            document.querySelectorAll('#vehicleForm input').forEach(input => input.value = '');
+        }
+        
+        // Gespeicherte Fahrzeuge anzeigen
+        function displaySavedVehicles() {
+            const list = document.getElementById('vehiclesList');
+            list.innerHTML = '';
+            
+            if (vehicles.length === 0) {
+                list.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 20px;">Noch keine Fahrzeuge gespeichert.</p>';
+                return;
+            }
+            
+            vehicles.forEach(vehicle => {
+                const typeNames = {
+                    pkw: 'PKW',
+                    crafter: 'Crafter / Transporter',
+                    lkw3: 'LKW 3-Achser',
+                    lkwtrailer: 'LKW mit Anhänger / Sattelzug'
+                };
+                
+                const costs = calculateCostsPerKm(vehicle);
+                
+                const card = document.createElement('div');
+                card.className = 'vehicle-card';
+                
+                // Zusatzinfo für LKW/Crafter
+                let vehicleInfo = vehicle.name;
+                if (vehicle.licensePlate) {
+                    vehicleInfo += ' (' + vehicle.licensePlate + ')';
+                }
+                if (vehicle.axleCount && vehicle.emissionClass) {
+                    const axleText = vehicle.axleCount === '5' ? '5+' : vehicle.axleCount;
+                    const emissionText = vehicle.emissionClass === 'euro6' ? 'Euro 6' : 
+                                        vehicle.emissionClass === 'euro5' ? 'Euro 5' : 
+                                        vehicle.emissionClass === 'euro4' ? 'Euro 4' : 'Euro 3';
+                    vehicleInfo += ` • ${axleText} Achsen, ${emissionText}`;
+                }
+                
+                card.innerHTML = `
+                    <div class="vehicle-card-header">
+                        <div>
+                            <div class="vehicle-type">${typeNames[vehicle.type]}</div>
+                            <div style="color: var(--text-light); font-size: 14px; margin-top: 5px;">${vehicleInfo}</div>
+                        </div>
+                        <div class="vehicle-actions">
+                            <button class="btn btn-secondary btn-small" onclick="editVehicle(${vehicle.id})">Bearbeiten</button>
+                            <button class="btn btn-danger btn-small" onclick="deleteVehicle(${vehicle.id})">Löschen</button>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 15px;">
+                        <div>
+                            <div style="font-size: 12px; color: var(--text-light);">Kosten pro km (gesamt)</div>
+                            <div style="font-size: 18px; font-weight: 600; color: var(--primary);">${costs.totalPerKm.toFixed(3)} €</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: var(--text-light);">Variable Kosten/km</div>
+                            <div style="font-size: 18px; font-weight: 600; color: var(--success);">${costs.variablePerKm.toFixed(3)} €</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: var(--text-light);">Fixkosten/km</div>
+                            <div style="font-size: 18px; font-weight: 600; color: var(--warning);">${costs.fixedPerKm.toFixed(3)} €</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; color: var(--text-light);">Jährliche Fahrleistung</div>
+                            <div style="font-size: 18px; font-weight: 600; color: var(--text-dark);">${(vehicle.annualMileage || 0).toLocaleString()} km</div>
+                        </div>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+        
+        // Kosten pro km berechnen
+        function calculateCostsPerKm(vehicle) {
+            const annualMileage = vehicle.annualMileage || 1; // Fallback to avoid division by zero
+            
+            // Variable Kosten pro km
+            const fuelCostPerKm = ((vehicle.fuelConsumption || 0) / 100) * (vehicle.fuelPrice || 0);
+            
+            const adblueYearlyCost = (vehicle.adblueYearlyConsumption || 0) * (vehicle.adbluePrice || 0);
+            const adblueCostPerKm = annualMileage > 0 ? adblueYearlyCost / annualMileage : 0;
+            
+            const tollCostPerKm = vehicle.tollRate || 0;
+            
+            const tireSetCost = (vehicle.tirePrice || 0) * (vehicle.tireCount || 0);
+            const tireCostPerKm = (vehicle.tireMileage || 1) > 0 ? tireSetCost / vehicle.tireMileage : 0;
+            
+            const oilCostPerKm = annualMileage > 0 ? (vehicle.oilYearlyCost || 0) / annualMileage : 0;
+            
+            // Durchschnittliche Fahrzeit pro km
+            let avgSpeed = (vehicle.type === 'pkw' || vehicle.type === 'crafter') ? 90 : 70;
+            const timePerKm = 1 / avgSpeed; // Stunden pro km
+            const driverCostPerKm = timePerKm * (vehicle.driverWage || 0);
+            
+            const variablePerKm = fuelCostPerKm + adblueCostPerKm + tollCostPerKm + tireCostPerKm + oilCostPerKm + driverCostPerKm;
+            
+            // Fixkosten pro km
+            const yearlyDepreciation = (vehicle.depreciationYears || 0) > 0 ? (vehicle.purchasePrice || 0) / vehicle.depreciationYears : 0;
+            const yearlyFixed = (vehicle.insurance || 0) + (vehicle.tax || 0) + (vehicle.maintenance || 0) + ((vehicle.leasing || 0) * 12);
+            const totalYearlyFixed = yearlyDepreciation + yearlyFixed;
+            const fixedPerKm = annualMileage > 0 ? totalYearlyFixed / annualMileage : 0;
+            
+            const totalPerKm = variablePerKm + fixedPerKm;
+            
+            return {
+                variablePerKm,
+                fixedPerKm,
+                totalPerKm
+            };
+        }
+        
+        // Fahrzeug löschen
+        function deleteVehicle(id) {
+            if (confirm('Möchten Sie dieses Fahrzeug wirklich löschen?')) {
+                vehicles = vehicles.filter(v => v.id !== id);
+                localStorage.setItem('vehicles', JSON.stringify(vehicles));
+                displaySavedVehicles();
+                updateOverview();
+                updateVehicleSelector();
+            }
+        }
+        
+        // Fahrzeug bearbeiten
+        function editVehicle(id) {
+            const vehicle = vehicles.find(v => v.id === id);
+            if (!vehicle) return;
+            
+            // Fahrzeug aus Liste entfernen
+            vehicles = vehicles.filter(v => v.id !== id);
+            localStorage.setItem('vehicles', JSON.stringify(vehicles));
+            
+            // Formular mit Daten füllen
+            document.getElementById('vehicleType').value = vehicle.type;
+            updateFormFields();
+            
+            document.getElementById('vehicleName').value = vehicle.name;
+            document.getElementById('licensePlate').value = vehicle.licensePlate;
+            document.getElementById('annualMileage').value = vehicle.annualMileage;
+            document.getElementById('driverWage').value = vehicle.driverWage || 0;
+            document.getElementById('fuelConsumption').value = vehicle.fuelConsumption;
+            document.getElementById('fuelPrice').value = vehicle.fuelPrice;
+            document.getElementById('adblueYearlyConsumption').value = vehicle.adblueYearlyConsumption || 0;
+            document.getElementById('adbluePrice').value = vehicle.adbluePrice || 0;
+            document.getElementById('axleCount').value = vehicle.axleCount || '';
+            document.getElementById('emissionClass').value = vehicle.emissionClass || '';
+            document.getElementById('tollRate').value = vehicle.tollRate || 0;
+            document.getElementById('tirePrice').value = vehicle.tirePrice || 0;
+            document.getElementById('tireCount').value = vehicle.tireCount || 0;
+            document.getElementById('tireMileage').value = vehicle.tireMileage || 0;
+            document.getElementById('oilYearlyCost').value = vehicle.oilYearlyCost;
+            document.getElementById('purchasePrice').value = vehicle.purchasePrice;
+            document.getElementById('depreciationYears').value = vehicle.depreciationYears;
+            document.getElementById('insurance').value = vehicle.insurance;
+            document.getElementById('tax').value = vehicle.tax;
+            document.getElementById('maintenance').value = vehicle.maintenance;
+            document.getElementById('leasing').value = vehicle.leasing;
+            
+            // Mautsatz aktualisieren falls Achsen und Emission vorhanden
+            if (vehicle.axleCount && vehicle.emissionClass) {
+                updateTollRate();
+            }
+            
+            // Zum Eingabe-Tab wechseln
+            document.querySelector('[data-tab="input"]').click();
+            window.scrollTo(0, 0);
+            
+            alert('Fahrzeug wurde in das Formular geladen. Nach der Bearbeitung bitte speichern.');
+        }
+        
+        // Übersicht aktualisieren
+        function updateOverview() {
+            const distance = parseFloat(document.getElementById('overviewDistance').value) || 100;
+            const table = document.getElementById('vehicleOverviewTable');
+            table.innerHTML = '';
+            
+            if (vehicles.length === 0) {
+                table.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-light);">
+                            Keine Fahrzeuge gespeichert. Bitte fügen Sie Fahrzeuge im Tab "Fahrzeugdaten" hinzu.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            const typeNames = {
+                pkw: 'PKW',
+                crafter: 'Crafter / Transporter',
+                lkw3: 'LKW 3-Achser',
+                lkwtrailer: 'LKW mit Anhänger / Sattelzug'
+            };
+            
+            vehicles.forEach(vehicle => {
+                const costs = calculateCostsPerKm(vehicle);
+                const totalCosts = costs.totalPerKm * distance;
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>
+                        <strong>${typeNames[vehicle.type]}</strong><br>
+                        <span style="color: var(--text-light); font-size: 13px;">${vehicle.name}</span>
+                    </td>
+                    <td><span class="cost-badge variable">${costs.variablePerKm.toFixed(3)} €</span></td>
+                    <td><span class="cost-badge fixed">${costs.fixedPerKm.toFixed(3)} €</span></td>
+                    <td><span class="cost-badge total">${totalCosts.toFixed(2)} €</span></td>
+                    <td>
+                        <button class="btn btn-secondary btn-small" onclick="showDetailedCosts(${vehicle.id}, ${distance})">Details</button>
+                    </td>
+                `;
+                table.appendChild(row);
+            });
+        }
+        
+        // Detaillierte Kosten anzeigen
+        function showDetailedCosts(id, distance) {
+            const vehicle = vehicles.find(v => v.id === id);
+            if (!vehicle) return;
+            
+            const costs = calculateDetailedCosts(vehicle, distance);
+            const annualMileage = vehicle.annualMileage || 1;
+            
+            const adblueYearlyCost = (vehicle.adblueYearlyConsumption || 0) * (vehicle.adbluePrice || 0);
+            const tireSetCost = (vehicle.tirePrice || 0) * (vehicle.tireCount || 0);
+            
+            let details = `Kostenaufschlüsselung für ${vehicle.name} bei ${distance} km:\n\n`;
+            details += `VARIABLE KOSTEN:\n`;
+            details += `- Kraftstoff: ${costs.fuel.toFixed(2)} € (${vehicle.fuelConsumption || 0}l/100km × ${vehicle.fuelPrice || 0}€/l)\n`;
+            if (costs.adblue > 0) {
+                details += `- AdBlue: ${costs.adblue.toFixed(2)} € (${vehicle.adblueYearlyConsumption || 0}l × ${vehicle.adbluePrice || 0}€/l ÷ ${annualMileage} km/Jahr)\n`;
+            }
+            if (costs.toll > 0) {
+                details += `- Maut: ${costs.toll.toFixed(2)} € (${vehicle.tollRate || 0}€/km × ${costs.tollableDistance.toFixed(1)} km mautpflichtig)\n`;
+            }
+            details += `- Reifen: ${costs.tire.toFixed(2)} € (${vehicle.tireCount || 0} Stk × ${vehicle.tirePrice || 0}€ ÷ ${vehicle.tireMileage || 1} km Laufleistung)\n`;
+            details += `- Öl: ${costs.oil.toFixed(2)} € (${vehicle.oilYearlyCost || 0}€/Jahr ÷ ${annualMileage} km)\n`;
+            if (costs.driver > 0) {
+                const drivingTimeFormatted = costs.drivingTime < 1 
+                    ? Math.round(costs.drivingTime * 60) + ' Min' 
+                    : costs.drivingTime.toFixed(1) + ' h';
+                details += `- Lohnkosten: ${costs.driver.toFixed(2)} € (${drivingTimeFormatted} × ${vehicle.driverWage || 0}€/h)\n`;
+            }
+            details += `Summe variabel: ${costs.variableTotal.toFixed(2)} €\n\n`;
+            
+            details += `FIXKOSTEN:\n`;
+            const yearlyDepreciation = (vehicle.depreciationYears || 0) > 0 ? (vehicle.purchasePrice || 0) / vehicle.depreciationYears : 0;
+            details += `- Entwertung: ${costs.depreciation.toFixed(2)} € (${vehicle.purchasePrice || 0}€ ÷ ${vehicle.depreciationYears || 1} Jahre ÷ ${annualMileage} km/Jahr)\n`;
+            details += `- Versicherung: ${((vehicle.insurance || 0) / annualMileage * distance).toFixed(2)} €\n`;
+            details += `- Steuer: ${((vehicle.tax || 0) / annualMileage * distance).toFixed(2)} €\n`;
+            details += `- Wartung: ${((vehicle.maintenance || 0) / annualMileage * distance).toFixed(2)} €\n`;
+            if ((vehicle.leasing || 0) > 0) {
+                details += `- Leasing: ${(((vehicle.leasing || 0) * 12) / annualMileage * distance).toFixed(2)} €\n`;
+            }
+            details += `Summe fix: ${costs.fixedTotal.toFixed(2)} €\n\n`;
+            
+            details += `GESAMTKOSTEN: ${costs.total.toFixed(2)} €\n`;
+            details += `Kosten pro km: ${(costs.total / distance).toFixed(3)} €`;
+            
+            alert(details);
+        }
+        
+        // Initialisierung
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            displaySavedVehicles();
+            updateOverview();
+            updateVehicleSelector();
+        });
+    </script>
+</body>
+</html>
