@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Firebase Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .info { background-color: #d1ecf1; color: #0c5460; }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        #output {
+            background-color: #f4f4f4;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            min-height: 200px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔥 Firebase Verbindungs-Test</h1>
+    
+    <div id="status" class="status info">Warte auf Test...</div>
+    
+    <h2>Tests:</h2>
+    <button onclick="testConnection()">1. Verbindung testen</button>
+    <button onclick="testWrite()">2. Schreiben testen</button>
+    <button onclick="testRead()">3. Lesen testen</button>
+    <button onclick="clearTest()">4. Test-Daten löschen</button>
+    
+    <h2>Output:</h2>
+    <div id="output"></div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBmk6-WZp4g-lPfIrZBFMGKUB5SWpEmzdE",
+            authDomain: "facharbeit-mtb-und-trails.firebaseapp.com",
+            projectId: "facharbeit-mtb-und-trails",
+            storageBucket: "facharbeit-mtb-und-trails.firebasestorage.app",
+            messagingSenderId: "639798778772",
+            appId: "1:639798778772:web:21ebded979a096873f4d81",
+            measurementId: "G-C6KBMTZY5W"
+        };
+
+        let db = null;
+        
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const time = new Date().toLocaleTimeString();
+            output.innerHTML += `[${time}] ${message}\n`;
+            console.log(message);
+        }
+        
+        function setStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+        }
+
+        // Firebase initialisieren
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            setStatus('✅ Firebase SDK geladen!', 'success');
+            log('✅ Firebase SDK geladen und initialisiert');
+        } catch (error) {
+            setStatus('❌ Firebase Fehler: ' + error.message, 'error');
+            log('❌ Firebase Fehler: ' + error.message);
+        }
+
+        function testConnection() {
+            log('\n=== TEST 1: Verbindung ===');
+            
+            if (!db) {
+                setStatus('❌ Firestore nicht initialisiert!', 'error');
+                log('❌ Firestore nicht initialisiert');
+                return;
+            }
+            
+            setStatus('✅ Firestore initialisiert!', 'success');
+            log('✅ Firestore Objekt vorhanden');
+            log('✅ Projekt-ID: ' + firebaseConfig.projectId);
+        }
+
+        function testWrite() {
+            log('\n=== TEST 2: Schreiben ===');
+            
+            if (!db) {
+                setStatus('❌ Firestore nicht initialisiert!', 'error');
+                return;
+            }
+            
+            const testData = {
+                name: 'TEST EINTRAG',
+                timestamp: new Date().toISOString(),
+                test: true
+            };
+            
+            log('Versuche zu schreiben: ' + JSON.stringify(testData));
+            setStatus('⏳ Schreibe zu Firebase...', 'info');
+            
+            db.collection('test').add(testData)
+                .then((docRef) => {
+                    setStatus('✅ Erfolgreich geschrieben!', 'success');
+                    log('✅ Dokument erstellt mit ID: ' + docRef.id);
+                    log('→ Gehe zu Firebase Console und prüfe Collection "test"');
+                })
+                .catch((error) => {
+                    setStatus('❌ Schreib-Fehler: ' + error.message, 'error');
+                    log('❌ Fehler beim Schreiben: ' + error.code);
+                    log('❌ Nachricht: ' + error.message);
+                    
+                    if (error.code === 'permission-denied') {
+                        log('💡 LÖSUNG: Firestore Regeln anpassen!');
+                        log('   1. Firebase Console öffnen');
+                        log('   2. Firestore → Regeln');
+                        log('   3. Einfügen: allow read, write: if true;');
+                    }
+                });
+        }
+
+        function testRead() {
+            log('\n=== TEST 3: Lesen ===');
+            
+            if (!db) {
+                setStatus('❌ Firestore nicht initialisiert!', 'error');
+                return;
+            }
+            
+            setStatus('⏳ Lese von Firebase...', 'info');
+            log('Versuche Collection "test" zu lesen...');
+            
+            db.collection('test').get()
+                .then((snapshot) => {
+                    setStatus('✅ Erfolgreich gelesen!', 'success');
+                    log('✅ ' + snapshot.size + ' Dokumente gefunden');
+                    
+                    if (snapshot.size === 0) {
+                        log('💡 Keine Dokumente vorhanden');
+                        log('   Führe zuerst TEST 2 aus!');
+                    } else {
+                        snapshot.forEach((doc) => {
+                            log('📄 Dokument ID: ' + doc.id);
+                            log('   Daten: ' + JSON.stringify(doc.data()));
+                        });
+                    }
+                })
+                .catch((error) => {
+                    setStatus('❌ Lese-Fehler: ' + error.message, 'error');
+                    log('❌ Fehler beim Lesen: ' + error.code);
+                    log('❌ Nachricht: ' + error.message);
+                });
+        }
+
+        function clearTest() {
+            log('\n=== TEST 4: Löschen ===');
+            
+            if (!db) {
+                setStatus('❌ Firestore nicht initialisiert!', 'error');
+                return;
+            }
+            
+            if (!confirm('Alle Test-Dokumente löschen?')) return;
+            
+            setStatus('⏳ Lösche Test-Daten...', 'info');
+            
+            db.collection('test').get()
+                .then((snapshot) => {
+                    const deletePromises = [];
+                    snapshot.forEach((doc) => {
+                        deletePromises.push(doc.ref.delete());
+                    });
+                    
+                    return Promise.all(deletePromises);
+                })
+                .then(() => {
+                    setStatus('✅ Test-Daten gelöscht!', 'success');
+                    log('✅ Alle Test-Dokumente gelöscht');
+                })
+                .catch((error) => {
+                    setStatus('❌ Lösch-Fehler: ' + error.message, 'error');
+                    log('❌ Fehler: ' + error.message);
+                });
+        }
+    </script>
+</body>
+</html>
